@@ -1,13 +1,30 @@
+from typing import Optional
+
 import torch
 
 class MdnRnn(torch.nn.Module):
-    def __init__(self, input_size, hidden_size, output_size, num_gaussians=5):
+    def __init__(self,
+                 input_size: int,
+                 hidden_size: int,
+                 output_size: int,
+                 num_gaussians: int = 5,
+                 device: Optional[torch.device] = "cpu",
+                 weights_path: Optional[str] = None):
         super(MdnRnn, self).__init__()
+        self.device = device
         self.input_size = input_size
         self.output_size = output_size
         self.num_gaussians = num_gaussians
-        self.rnn = torch.nn.LSTM(input_size, hidden_size, batch_first=True)
-        self.fc = torch.nn.Linear(hidden_size, num_gaussians + 2 * self.output_size * num_gaussians)
+        self.rnn = torch.nn.LSTM(input_size, hidden_size, batch_first=True).to(self.device)
+        self.fc = torch.nn.Linear(hidden_size, num_gaussians + 2 * self.output_size * num_gaussians).to(self.device)
+        if weights_path is not None:
+            self.load_state_dict(torch.load(weights_path, map_location=self.device))
+
+    def freeze_weights(self):
+        self.requires_grad_(False)
+        for param in self.parameters():
+            param.requires_grad = False
+        return self
 
     def forward(self, input, hidden):
         rnn_out, hidden = self.rnn(input, hidden)

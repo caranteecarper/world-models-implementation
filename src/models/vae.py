@@ -1,3 +1,5 @@
+from typing import Optional
+
 import torch
 
 class Flatten(torch.nn.Module):
@@ -13,7 +15,12 @@ class UnFlatten(torch.nn.Module):
         return input.view(input.size(0), self.size, 1, 1)
     
 class ConvVAE(torch.nn.Module):
-    def __init__(self, image_channels, h_dim, z_dim, device="cpu"):
+    def __init__(self,
+                 image_channels: int,
+                 h_dim: int,
+                 z_dim: int,
+                 device: Optional[torch.device] = "cpu",
+                 weights_path: Optional[str] = None):
         super(ConvVAE, self).__init__()
         self.device = device
         self.encoder = torch.nn.Sequential(
@@ -43,6 +50,15 @@ class ConvVAE(torch.nn.Module):
             torch.nn.ConvTranspose2d(32, image_channels, kernel_size=6, stride=2),
             torch.nn.Sigmoid(),
         ).to(self.device)
+
+        if weights_path is not None:
+            self.load_state_dict(torch.load(weights_path, map_location=self.device))
+
+    def freeze_weights(self):
+        self.requires_grad_(False)
+        for param in self.parameters():
+            param.requires_grad = False
+        return self
 
     def reparameterize(self, mu, logvar):
         std = logvar.mul(0.5).exp_().to(self.device)
