@@ -153,7 +153,7 @@ class Trainer(ABC):
                 self._logger.debug(f"Step time: {post_step_time - post_loss_time:.4f}s")
                 self.post_training_loss_logging(epoch, batch_number+1, self.total_trained_batches, normalized_loss)
             pre_batch_load_time = time.time()
-        self._logger.info(f"Epoch {epoch} Loss: {train_loss / train_batches:.4f}")
+        self._logger.info(f"Epoch {epoch} Training Loss: {train_loss / train_batches:.4f}")
 
     def test_epoch(self, epoch: int) -> bool:
         self.model.eval()
@@ -173,7 +173,7 @@ class Trainer(ABC):
                 self._logger.debug(f"Epoch {epoch} Batch {batch_number+1} Loss: {normalized_loss:.4f}")
                 self.post_testing_loss_logging(epoch, batch_number+1, self.total_trained_batches, normalized_loss)
         avg_test_loss = test_loss / test_batches
-        self._logger.info(f"Epoch {epoch} Loss: {avg_test_loss:.4f}")
+        self._logger.info(f"Epoch {epoch} Test Loss: {avg_test_loss:.4f}")
         self.wandb_logger.log({"test/loss": avg_test_loss})
         if avg_test_loss < self.best_epoch_loss:
             self.best_epoch = epoch

@@ -3,25 +3,28 @@ import pygame
 import numpy as np
 import torch
 import torch.nn.functional as F
-import cv2  # Required for video saving
+import cv2
 
 from src.models.vae import ConvVAE
+from src.utils.logging import get_logger
 
-
-# --- Configuration ---
-DEVICE = torch.device("mps:0" if torch.backends.mps.is_available() else "cpu")
-DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else DEVICE)
-print(f"Using device: {DEVICE}")
 
 VAE_PATH = "./weights/vae/model.pth"
 VIDEO_FILENAME = "vae_comparison.mp4"
 OBSERVATION_REPRESENTATION_DIM = 32
 VAE_INPUT_SIZE = 64 
 
-# Display Sizes
-PLAYER_VIEW_SIZE = (600, 600)   # Size of the window you play on
-VIDEO_SCALE = 4                 # Scale up the 64x64 VAE frames for the video file
-                                # Result video will be (64*2*4) wide by (64*4) high = 512x256
+PLAYER_VIEW_SIZE = (600, 600)
+VIDEO_SCALE = 4
+
+
+logger = get_logger()
+
+DEVICE = torch.device("mps:0" if torch.backends.mps.is_available() else "cpu")
+DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else DEVICE)
+logger.info(f"Using device: {DEVICE}")
+
+
 
 # --- Helper Functions ---
 
@@ -39,17 +42,8 @@ def tensor_to_numpy_img(tensor):
     img = np.clip(img, 0, 1) * 255
     return img.astype(np.uint8)
 
-# --- Main Setup ---
-
-print("Loading VAE...")
-try:
-    vae = ConvVAE(image_channels=3, h_dim=1024, z_dim=OBSERVATION_REPRESENTATION_DIM).to(DEVICE)
-    vae.load_state_dict(torch.load(VAE_PATH, map_location=DEVICE))
-    vae.eval()
-    print("VAE loaded.")
-except Exception as e:
-    print(f"Error loading VAE: {e}")
-    exit(1)
+vae = ConvVAE(image_channels=3, h_dim=1024, z_dim=OBSERVATION_REPRESENTATION_DIM, device=DEVICE, weights_path=VAE_PATH)
+vae.freeze_weights().eval()
 
 # Init Environment
 env = gym.make("CarRacing-v3", render_mode="rgb_array")

@@ -12,6 +12,7 @@ class SimulationWorldModel():
                  worldmodel_path: str,
                  vae_path: Optional[str] = None,
                  device: Optional[torch.device] = "cpu",
+                 starting_observation: Optional[torch.Tensor] = None,
                  starting_observation_representation: Optional[torch.Tensor] = None,
                  starting_reward: Optional[float] = 0.0,
                  starting_hidden_state: Optional[tuple[torch.Tensor, torch.Tensor]] = None,
@@ -34,29 +35,44 @@ class SimulationWorldModel():
         else:
             self.vae = None
         rnn_input_dim = vae_z_dim + action_dim + reward_dim
+        self.rnn_hidden_dim = rnn_hidden_dim
         rnn_output_dim = vae_z_dim + reward_dim
         logger.debug(f"Creating RNN with: rnn_input_dim={rnn_input_dim} rnn_hidden_dim={rnn_hidden_dim} rnn_output_dim={rnn_output_dim} num_gaussians={num_gaussians}")
         self.worldmodel = MdnRnn(rnn_input_dim, rnn_hidden_dim, rnn_output_dim, num_gaussians, device=self.device, weights_path=worldmodel_path)
         self.worldmodel.freeze_weights().eval()
+        self.reset(starting_observation, starting_observation_representation, starting_reward, starting_hidden_state)        
+
+    def reset(self,
+              starting_observation: Optional[torch.Tensor] = None,
+              starting_observation_representation: Optional[torch.Tensor] = None,
+              starting_reward: Optional[float] = 0.0,
+              starting_hidden_state: Optional[tuple[torch.Tensor, torch.Tensor]] = None):
+        if starting_observation is not None and starting_observation_representation is not None:
+            raise ValueError("Cannot specify both starting_observation and starting_observation_representation")
+        if starting_observation is not None and self.vae is None:
+            raise ValueError("VAE is not initialized")
+        if starting_observation is not None:
+            with torch.no_grad():
+                self.current_observation_representation, _, _ = self.vae.encode(starting_observation.to(self.device).unsqueeze(0))
         if starting_observation_representation is not None:
             self.current_observation_representation = starting_observation_representation.to(self.device)
         else:
-            self.current_observation_representation = torch.randn(1, vae_z_dim).to(self.device)
+            self.current_observation_representation = torch.randn(1, self.vae_z_dim).to(self.device)
         self.current_reward = torch.tensor(starting_reward).to(self.device).unsqueeze(0).unsqueeze(0)
         if starting_hidden_state is not None:
             self.hidden = starting_hidden_state
         else:
-            self.h0 = torch.zeros(1, 1, rnn_hidden_dim).to(self.device)
-            self.c0 = torch.zeros(1, 1, rnn_hidden_dim).to(self.device)
+            self.h0 = torch.zeros(1, 1, self.rnn_hidden_dim).to(self.device)
+            self.c0 = torch.zeros(1, 1, self.rnn_hidden_dim).to(self.device)
             self.hidden = (self.h0, self.c0)
+        return self
 
-    def reset(self):
-        self.current_observation_representation = torch.randn(1, self.vae_z_dim).to(self.device)
-        self.current_reward = torch.tensor(0.0).to(self.device)
-        self.hidden = (self.h0, self.c0)
-
-    def predict_next_state(self, action: Union[np.ndarray, torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
+    def predict_next_state(self,
+                           action: Union[np.ndarray, torch.Tensor],
+                           current_reward: Optional[float] = None) -> tuple[torch.Tensor, torch.Tensor]:
         with torch.no_grad():
+            if current_reward is not None:
+                self.current_reward = torch.tensor(current_reward).to(self.device).unsqueeze(0).unsqueeze(0)
             if isinstance(action, np.ndarray):
                 action = torch.tensor(action, dtype=torch.float32).to(self.device).unsqueeze(0)
             rnn_input = torch.cat([self.current_observation_representation, action, self.current_reward], dim=1).unsqueeze(1) 
@@ -67,10 +83,12 @@ class SimulationWorldModel():
             self.current_reward = next_data[:, :, self.vae_z_dim:].squeeze(1)
             return self.current_observation_representation, self.current_reward
         
-    def predict_next_frame(self, action: Union[np.ndarray, torch.Tensor]) -> tuple[np.ndarray, torch.Tensor]:
+    def predict_next_frame(self,
+                           action: Union[np.ndarray, torch.Tensor],
+                           current_reward: Optional[float] = None) -> tuple[np.ndarray, torch.Tensor]:
         if self.vae is None:
             raise ValueError("VAE is not initialized")
-        observation_representation, reward = self.predict_next_state(action)
+        observation_representation, reward = self.predict_next_state(action, current_reward)
         with torch.no_grad():
             reconstructed_image = self.vae.decode(observation_representation)
         image_numpy = reconstructed_image.squeeze(0).permute(1, 2, 0).cpu().numpy()

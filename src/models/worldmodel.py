@@ -33,7 +33,7 @@ class MdnRnn(torch.nn.Module):
         pi = flat_out[:, :, :self.num_gaussians]
         sigma = flat_out[:, :, self.num_gaussians:self.num_gaussians + self.output_size * self.num_gaussians]
         sigma = sigma.view(batch_size, -1, self.num_gaussians, self.output_size)
-        sigma = torch.exp(sigma)
+        sigma = torch.nn.functional.softplus(sigma) + 1e-5
         mu = flat_out[:, :, self.num_gaussians + self.output_size * self.num_gaussians:]
         mu = mu.view(batch_size, -1, self.num_gaussians, self.output_size)
         pi = torch.softmax(pi, dim=-1)

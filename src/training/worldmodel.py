@@ -115,4 +115,4 @@ class WorldModelTrainer(Trainer):
         log_probs = torch.sum(log_probs, dim=3)
         log_weighted_probs = torch.log(pi) + log_probs
         log_prob_sum = torch.logsumexp(log_weighted_probs, dim=2)
-        return -torch.mean(log_prob_sum)
+        return -torch.sum(log_prob_sum)
