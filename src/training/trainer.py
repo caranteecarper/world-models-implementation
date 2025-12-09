@@ -98,18 +98,21 @@ class Trainer(ABC):
         self.train_loop = tqdm(total=len(self.train_dataloader), desc=f"Train Epoch {self.start_epoch}", unit="batch")
         if self.test_dataloader is not None:
             self.test_loop = tqdm(total=len(self.test_dataloader), desc=f"Test Epoch {self.start_epoch}", unit="batch")
-        for epoch in range(self.start_epoch, self.num_epochs + 1):
-            epochs_loop.update(1)
-            epochs_loop.set_description(f"Epoch {epoch}")
-            self.train_loop.reset()
-            if self.test_dataloader is not None:
-                self.test_loop.reset()
-            self.train_epoch(epoch)
-            torch.save(self.model.state_dict(), os.path.join(self.weights_folder, f"epoch_{epoch}.pth"))
-            if self.test_dataloader is not None:
-                should_early_stop = self.test_epoch(epoch)
-                if should_early_stop:
-                    break
+        try:
+            for epoch in range(self.start_epoch, self.num_epochs + 1):
+                epochs_loop.update(1)
+                epochs_loop.set_description(f"Epoch {epoch}")
+                self.train_loop.reset()
+                if self.test_dataloader is not None:
+                    self.test_loop.reset()
+                self.train_epoch(epoch)
+                torch.save(self.model.state_dict(), os.path.join(self.weights_folder, f"epoch_{epoch}.pth"))
+                if self.test_dataloader is not None:
+                    should_early_stop = self.test_epoch(epoch)
+                    if should_early_stop:
+                        break
+        except Exception as e:
+            self._logger.error(f"Interrupted training. An error occurred: {str(e)}")
         if self.test_dataloader is not None:
             self._logger.info(f"Best epoch: {self.best_epoch}, Loss: {self.best_epoch_loss}")
             self.model.load_state_dict(torch.load(os.path.join(self.weights_folder, f"epoch_{self.best_epoch}.pth")))
