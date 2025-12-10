@@ -1,9 +1,19 @@
+from typing import Optional
+
 import torch
 
 class Controller(torch.nn.Module):
-    def __init__(self, observation_dim, hidden_dim, action_dim):
+    def __init__(self,
+                 observation_dim: int,
+                 hidden_dim: int,
+                 action_dim: int,
+                 device: Optional[torch.device] = "cpu",
+                 weights_path: Optional[str] = None):
         super(Controller, self).__init__()
-        self.fc = torch.nn.Linear(observation_dim + hidden_dim, action_dim)
+        self.device = device
+        self.fc = torch.nn.Linear(observation_dim + hidden_dim, action_dim).to(self.device)
+        if weights_path is not None:
+            self.load_state_dict(torch.load(weights_path, map_location=self.device))
 
     def forward(self, observation, hidden_state):
         x = torch.cat([observation, hidden_state], dim=1)

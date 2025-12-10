@@ -1,19 +1,16 @@
 import logging
-import numpy as np
-import matplotlib.pyplot as plt
 from typing import Any, Optional
 
-import wandb
 import torch
 from torch import Tensor
 from torch.utils.data import DataLoader
 
 from src.models.vae import ConvVAE
-from src.training.trainer import Trainer
+from src.training.backpropagation_trainer import BackpropagationTrainer
 from src.training.early_stopping import EarlyStopper
 
 
-class WorldModelTrainer(Trainer):
+class WorldModelTrainer(BackpropagationTrainer):
     def __init__(self,
                  model: torch.nn.Module,
                  weights_folder: str,

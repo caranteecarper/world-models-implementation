@@ -68,6 +68,10 @@ class WandbTrainingLogger():
             return
         wandb.log(metrics, step=self.step)
 
+    def finish(self) -> None:
+        wandb.finish()
+
+
 class DummyWandbLogger():
     def set_step(self, step: int) -> None:
         pass

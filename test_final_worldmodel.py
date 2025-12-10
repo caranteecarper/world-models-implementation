@@ -1,15 +1,14 @@
-import os
-import logging
 import numpy as np
 
-import torch
 import gymnasium as gym
 
-from models.agent import Agent
+from src.models.agent import Agent
+from src.utils.torch import get_device
+from src.utils.logging import get_logger
 
-VAE_PATH = "./vae/model.pth"
-RNN_PATH = "./worldmodel/model.pth"
-CONTROLLER_PATH = "./controller/model.pth"
+VAE_PATH = "./weights/vae/model.pth"
+RNN_PATH = "./weights/worldmodel/model.pth"
+CONTROLLER_PATH = "./weights/controller/model.pth"
 
 IMAGE_CHANNELS = 3
 VAE_HIDDEN_DIMENSION = 1024
@@ -21,17 +20,11 @@ RNN_OUTPUT_DIMENSION = OBSERVATION_REPRESENTATION_DIMESNION + REWARD_DIMENSION
 OBSERVATION_Y_CROP = 83
 OBSERVATION_DIMENSION = 64
 
-LOG_LEVEL = logging.DEBUG
+LOG_LEVEL = "DEBUG"
 
-import coloredlogs
-logger = logging.getLogger(__name__)
-coloredlogs.install(level=LOG_LEVEL, logger=logger, fmt="%(asctime)s [%(levelname)s] %(message)s", isatty=True)
-logger.info("Logger initialized.")
 
-device = torch.device("mps:0" if torch.backends.mps.is_available() else "cpu")
-device = torch.device("cuda:0" if torch.cuda.is_available() else device)
-logger.info(f"Using device: {device}")
-
+logger = get_logger()
+device = get_device()
 
 agent = Agent(
     vae_path=VAE_PATH,

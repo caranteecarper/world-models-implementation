@@ -8,11 +8,11 @@ import torch
 from torch import Tensor
 from torch.utils.data import DataLoader
 
-from src.training.trainer import Trainer
+from training.backpropagation_trainer import BackpropagationTrainer
 from src.training.early_stopping import EarlyStopper
 
 
-class ConvVaeTrainer(Trainer):
+class ConvVaeTrainer(BackpropagationTrainer):
     def __init__(self,
                  model: torch.nn.Module,
                  weights_folder: str,
