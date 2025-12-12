@@ -1,12 +1,10 @@
-import glob
+import json
 import logging
 import os
-import re
 from abc import ABC, abstractmethod
-from typing import Any, Optional, Union
+from typing import Any, Optional
 
 import torch
-from torch import Tensor
 from tqdm.notebook import tqdm
 
 from src.metrics.wandb import WandbTrainingLogger, DummyWandbLogger
@@ -37,29 +35,63 @@ class BaseTrainer(ABC):
         self.start_epoch = 1
         self.total_trained_batches = 0
         if self.load_checkpoint:
-            self.start_epoch, self.total_trained_batches = self.__load_checkpoint(self.model)
+            self.__load_checkpoint(self.model)
         self.wandb_setup = wandb_setup
         self.wandb_logger = self.__initialize_wandb(self.wandb_setup)
         self._logger.debug(f"Base Trainer initialized with: {self.__dict__}")
 
-    def __load_checkpoint(self, model: torch.nn.Module) -> tuple[int, int]:
-        checkpoints = glob.glob(os.path.join(self.weights_folder, "epoch_*.pth"))
-        if not checkpoints:
+    def __load_checkpoint(self, model: torch.nn.Module) -> None:
+        self.epoch_already_trained = False
+        metadata = self._get_metadata()
+        self._logger.debug(f"Loaded Training Metadata: {metadata}")
+        self.best_epoch = metadata.get("best_epoch", -1)
+        self.best_epoch_loss = metadata.get("best_epoch_loss", float('inf'))
+        self.total_trained_batches = metadata.get("total_trained_batches", 0)
+        if self.total_trained_batches == 0:
             self._logger.info("No existing checkpoints found. Starting from scratch.")
-            return 1, 0
-        epochs = []
-        for path in checkpoints:
-            match = re.search(r'epoch_(\d+).pth', path)
-            if match:
-                epochs.append(int(match.group(1)))
-        if not epochs:
-            return 1, 0
-        latest_epoch = max(epochs)
-        checkpoint_path = os.path.join(self.weights_folder, f"epoch_{latest_epoch}.pth")
-        self._logger.info(f"Resuming training from: {checkpoint_path}")
-        model.load_state_dict(torch.load(checkpoint_path, map_location=self.device))
-        current_global_step = latest_epoch * self.train_epoch_length
-        return latest_epoch + 1, current_global_step
+            self.start_epoch = 1
+            return
+        epoch_metadata = metadata.get("epochs", {})
+        trained_epochs = [int(epoch) for epoch in epoch_metadata.keys()]
+        latest_epoch = max(trained_epochs)
+        latest_epoch_metadata = epoch_metadata.get(str(latest_epoch), {})
+        latest_epoch_path = os.path.join(self.weights_folder, latest_epoch_metadata.get("path"))
+        self._logger.info(f"Resuming training from: {latest_epoch_path}")
+        model.load_state_dict(torch.load(latest_epoch_path, map_location=self.device))
+        if latest_epoch_metadata.get("loss") is None:
+            self.epoch_already_trained = True
+            self.start_epoch = latest_epoch
+            return
+        self.start_epoch = latest_epoch + 1
+    
+    def _get_metadata(self) -> dict:
+        metadata_path = os.path.join(self.weights_folder, "metadata.json")
+        if os.path.exists(metadata_path):
+            with open(metadata_path, "r") as metadata_file:
+                metadata = json.load(metadata_file)
+                return metadata
+        else:
+            return {
+                "best_epoch": -1,
+                "best_epoch_loss": float('inf'),
+                "total_trained_batches": 0,
+                "epochs": {}
+            }
+        
+    def _update_metadata_epoch(self, epoch: int, update: dict[str, Any]) -> None:
+        metadata = self._get_metadata()
+        epochs_metadata = metadata.get("epochs", {})
+        current_epoch_metadata = epochs_metadata.get(str(epoch), {})
+        current_epoch_metadata.update(update)
+        epochs_metadata[str(epoch)] = current_epoch_metadata
+        metadata["epochs"] = epochs_metadata
+        metadata["total_trained_batches"] = self.total_trained_batches
+        self._save_metadata(metadata)
+
+    def _save_metadata(self, metadata: dict[str, Any]) -> None:
+        metadatafile_path = os.path.join(self.weights_folder, "metadata.json")
+        with open(metadatafile_path, "w") as metadata_file:
+            json.dump(metadata, metadata_file)
 
     def __initialize_wandb(self, wandb_setup: Optional[dict[str, Any]]) -> WandbTrainingLogger:
         if wandb_setup is None:
@@ -94,20 +126,45 @@ class BaseTrainer(ABC):
                 self.train_loop.reset()
                 if self.test_epoch_length > 0:
                     self.test_loop.reset()
-                self.train_epoch(epoch)
-                torch.save(self.model.state_dict(), os.path.join(self.weights_folder, f"epoch_{epoch}.pth"))
+                if not self.epoch_already_trained:
+                    self.train_epoch(epoch)
+                    self._save_model(epoch)
                 if self.test_epoch_length > 0:
                     should_early_stop = self.test_epoch(epoch)
                     if should_early_stop:
                         break
+                self.epoch_already_trained = False
+        except KeyboardInterrupt:
+            self._logger.info("Training interrupted manually by user. Stopping gracefully...")
         except Exception as e:
             self._logger.error(f"Interrupted training. An error occurred: {str(e)}")
-        if self.best_epoch != -1:
-            self._logger.info(f"Best epoch: {self.best_epoch}, Loss: {self.best_epoch_loss}")
-            self.model.load_state_dict(torch.load(os.path.join(self.weights_folder, f"epoch_{self.best_epoch}.pth")))
+        self.train_loop.close()
+        if self.test_epoch_length > 0:
+            self.test_loop.close()
+        self._load_best_epoch()
         torch.save(self.model.state_dict(), os.path.join(self.weights_folder, f"model.pth"))
         self.wandb_logger.finish()
         return self.model
+    
+    def _save_model(self, epoch: int) -> None:
+        epoch_file_name = f"epoch_{epoch}.pth"
+        torch.save(self.model.state_dict(), os.path.join(self.weights_folder, epoch_file_name))
+        self._update_metadata_epoch(epoch, {"path": epoch_file_name})
+
+    def _evaluate_best_epoch(self, epoch: int, epoch_loss: float) -> None:
+        self._update_metadata_epoch(epoch, {"loss": epoch_loss})
+        if epoch_loss < self.best_epoch_loss:
+            self.best_epoch = epoch
+            self.best_epoch_loss = epoch_loss
+            metadata = self._get_metadata()
+            metadata["best_epoch"] = self.best_epoch
+            metadata["best_epoch_loss"] = self.best_epoch_loss
+            self._save_metadata(metadata)
+
+    def _load_best_epoch(self) -> None:
+        if self.best_epoch != -1:
+            self._logger.info(f"Best epoch: {self.best_epoch}, Loss: {self.best_epoch_loss}")
+            self.model.load_state_dict(torch.load(os.path.join(self.weights_folder, f"epoch_{self.best_epoch}.pth")))
     
     @abstractmethod
     def train_epoch(self, epoch: int) -> None:

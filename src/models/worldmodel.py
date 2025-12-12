@@ -7,7 +7,9 @@ class MdnRnn(torch.nn.Module):
                  input_size: int,
                  hidden_size: int,
                  output_size: int,
-                 num_gaussians: int = 5,
+                 num_gaussians: int,
+                 min_sigma: float,
+                 max_sigma: float,
                  device: Optional[torch.device] = "cpu",
                  weights_path: Optional[str] = None):
         super(MdnRnn, self).__init__()
@@ -15,6 +17,8 @@ class MdnRnn(torch.nn.Module):
         self.input_size = input_size
         self.output_size = output_size
         self.num_gaussians = num_gaussians
+        self.min_sigma = min_sigma
+        self.max_sigma = max_sigma
         self.rnn = torch.nn.LSTM(input_size, hidden_size, batch_first=True).to(self.device)
         self.fc = torch.nn.Linear(hidden_size, num_gaussians + 2 * self.output_size * num_gaussians).to(self.device)
         if weights_path is not None:
@@ -33,9 +37,9 @@ class MdnRnn(torch.nn.Module):
         pi = flat_out[:, :, :self.num_gaussians]
         sigma = flat_out[:, :, self.num_gaussians:self.num_gaussians + self.output_size * self.num_gaussians]
         sigma = sigma.view(batch_size, -1, self.num_gaussians, self.output_size)
-        sigma = torch.nn.functional.softplus(sigma) + 1e-5
+        sigma = torch.nn.functional.softplus(sigma)
+        sigma = torch.clamp(sigma, min=self.min_sigma, max=self.max_sigma)
         mu = flat_out[:, :, self.num_gaussians + self.output_size * self.num_gaussians:]
         mu = mu.view(batch_size, -1, self.num_gaussians, self.output_size)
         pi = torch.softmax(pi, dim=-1)
-
         return pi, sigma, mu, hidden

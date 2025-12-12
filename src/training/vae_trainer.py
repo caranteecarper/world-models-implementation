@@ -8,7 +8,7 @@ import torch
 from torch import Tensor
 from torch.utils.data import DataLoader
 
-from training.backpropagation_trainer import BackpropagationTrainer
+from src.training.backpropagation_trainer import BackpropagationTrainer
 from src.training.early_stopping import EarlyStopper
 
 
@@ -20,6 +20,7 @@ class ConvVaeTrainer(BackpropagationTrainer):
                  optimizer: torch.optim.Optimizer,
                  num_epochs: int,
                  batch_size: int,
+                 kld_beta: float,
                  train_image_log_interval: int,
                  load_checkpoint: bool = False,
                  max_norm: Optional[float] = 0.1,
@@ -43,7 +44,7 @@ class ConvVaeTrainer(BackpropagationTrainer):
                          wandb_setup=wandb_setup,
                          logger=logger)
 
-    def plot_image_comparison(self, fig, axes, input_image: Tensor, recon_image: Tensor):
+    def plot_image_comparison(self, axes, input_image: Tensor, recon_image: Tensor):
         img_in = input_image.permute(1, 2, 0).cpu().numpy()
         img_in = np.clip(img_in, 0, 1)
         axes[0].imshow(img_in)
@@ -64,7 +65,7 @@ class ConvVaeTrainer(BackpropagationTrainer):
             recon_image = self.recon_batch[0]
             with torch.no_grad():
                 fig, axes = plt.subplots(1, 2, figsize=(10, 5))
-                self.plot_image_comparison(fig, axes, input_image, recon_image)
+                self.plot_image_comparison(axes, input_image, recon_image)
                 self.wandb_logger.log({"train/image": wandb.Image(fig)})
                 plt.close(fig)
 
@@ -77,7 +78,7 @@ class ConvVaeTrainer(BackpropagationTrainer):
             recon_image = self.recon_batch[0]
             with torch.no_grad():
                 fig, axes = plt.subplots(1, 2, figsize=(10, 5))
-                self.plot_image_comparison(fig, axes, input_image, recon_image)
+                self.plot_image_comparison(axes, input_image, recon_image)
                 self.wandb_logger.log({"test/image": wandb.Image(fig)})
                 plt.close(fig)
 
@@ -101,5 +102,5 @@ class ConvVaeTrainer(BackpropagationTrainer):
     
     def loss_fn(self, recon_x, x, mu, logvar):
         BCE = torch.nn.functional.mse_loss(recon_x, x, reduction='sum')
-        KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+        KLD = -torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
         return BCE + KLD, BCE, KLD

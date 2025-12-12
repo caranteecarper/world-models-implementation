@@ -1,4 +1,5 @@
-from logging import Logger, getLogger
+import json
+from logging import Logger
 from typing import Optional
 
 import torch
@@ -7,64 +8,81 @@ import numpy as np
 from src.models.vae import ConvVAE
 from src.models.worldmodel import MdnRnn
 from src.models.controller import Controller
+from src.utils.logging import get_logger
 
 class Agent():
     def __init__(self,
                  vae_path: str,
-                 rnn_path: str,
+                 worldmodel_path: str,
                  controller_path: str,
                  device: torch.device,
-                 image_channels: int = 3,
-                 vae_h_dim: int = 1024,
-                 vae_z_dim: int = 32,
-                 rnn_hidden_dim: int = 256,
-                 num_gaussians: int = 5,
-                 action_dim: int = 3,
-                 reward_dim: int = 1,
-                 observation_y_crop: int = 83,
-                 observation_dim: int = 64,
                  logger: Optional[Logger] = None):
-        self.logger = logger or getLogger(__name__)
+        self.logger = logger or get_logger()
         self.device = device
         logger.debug(f"WorldModel device: {self.device}")
-        self.observation_y_crop = observation_y_crop
-        self.observation_dim = observation_dim
-        logger.debug(f"Creating VAE with: image_channels={image_channels} vae_h_dim={vae_h_dim} vae_z_dim={vae_z_dim}")
-        self.vae = ConvVAE(image_channels, vae_h_dim, vae_z_dim).to(self.device)
-        self.vae.load_state_dict(torch.load(vae_path, map_location=self.device))
-        self.vae.eval()
-        self.vae.requires_grad_(False)
-        for param in self.vae.parameters():
-            param.requires_grad = False
-        self.vae = self.vae.to(self.device)
-        rnn_input_dim = vae_z_dim + action_dim + reward_dim
-        rnn_output_dim = vae_z_dim + reward_dim
-        logger.debug(f"Creating RNN with: rnn_input_dim={rnn_input_dim} rnn_hidden_dim={rnn_hidden_dim} rnn_output_dim={rnn_output_dim} num_gaussians={num_gaussians}")
-        self.worldmodel = MdnRnn(rnn_input_dim, rnn_hidden_dim, rnn_output_dim, num_gaussians)
-        self.worldmodel.load_state_dict(torch.load(rnn_path, map_location=self.device))
-        self.worldmodel.eval()
-        self.worldmodel.requires_grad_(False)
-        for param in self.worldmodel.parameters():
-            param.requires_grad = False
-        self.worldmodel = self.worldmodel.to(self.device)
-        logger.debug(f"Creating Controller with: observation_dim={vae_z_dim} hidden_dim={rnn_hidden_dim} action_dim={action_dim}")
-        self.controller = Controller(vae_z_dim, rnn_hidden_dim, action_dim)
-        self.controller.load_state_dict(torch.load(controller_path, map_location=self.device))
-        self.controller.eval()
-        self.controller.requires_grad_(False)
-        for param in self.controller.parameters():
-            param.requires_grad = False
-        self.controller = self.controller.to(self.device)
-        self.h0 = torch.zeros(1, 1, rnn_hidden_dim).to(self.device)
-        self.c0 = torch.zeros(1, 1, rnn_hidden_dim).to(self.device)
-        self.hidden = (self.h0, self.c0)
+        self.vae = ConvVAE(image_channels=self.image_channels,
+                           h_dim=self.vae_hidden_dim,
+                           z_dim=self.representation_dim,
+                           device=self.device,
+                           weights_path=vae_path)
+        self.vae.freeze_weights().eval()
+        self.worldmodel = MdnRnn(input_size=self.rnn_input_dim,
+                                 hidden_size=self.rnn_hidden_dim,
+                                 output_size=self.rnn_output_dim,
+                                 num_gaussians=self.rnn_num_gaussians,
+                                 min_sigma=self.rnn_min_sigma,
+                                 max_sigma=self.rnn_max_sigma,
+                                 device=self.device,
+                                 weights_path=worldmodel_path)
+        self.worldmodel.freeze_weights().eval()
+        self.controller = Controller(observation_dim=self.representation_dim,
+                                     hidden_dim=self.rnn_hidden_dim,
+                                     action_dim=self.action_dim,
+                                     device=self.device,
+                                     weights_path=controller_path)
+        self.reset()
+
+    def get_model_settings(self, settings_path: str):
+        with open(settings_path, "r") as settings_file:
+            settings = json.load(settings_file)
+            self.observation_crop_dim = settings["data_ingestion"]["observation_crop_dim"]
+            self.logger.debug(f"observation_crop_dim: {self.observation_crop_dim}")
+            self.observation_dim = settings["vae"]["model"]["observation_dim"]
+            self.logger.debug(f"observation_dim: {self.observation_dim}")
+            self.image_channels = settings["vae"]["model"]["image_channels"]
+            self.logger.debug(f"image_channels: {self.image_channels}")
+            self.vae_hidden_dim = settings["vae"]["model"]["hidden_dim"]
+            self.logger.debug(f"vae_hidden_dim: {self.vae_hidden_dim}")
+            self.representation_dim = settings["vae"]["model"]["representation_dim"]
+            self.logger.debug(f"representation_dim: {self.representation_dim}")
+            self.rnn_hidden_dim = settings["world_model"]["model"]["hidden_dim"]
+            self.logger.debug(f"rnn_hidden_dim: {self.rnn_hidden_dim}")
+            self.rnn_num_gaussians = settings["world_model"]["model"]["num_gaussians"]
+            self.logger.debug(f"rnn_num_gaussians: {self.rnn_num_gaussians}")
+            self.rnn_min_sigma = settings["world_model"]["model"]["min_sigma"]
+            self.logger.debug(f"rnn_min_sigma: {self.rnn_min_sigma}")
+            self.rnn_max_sigma = settings["world_model"]["model"]["max_sigma"]
+            self.logger.debug(f"rnn_max_sigma: {self.rnn_max_sigma}")
+            self.rnn_input_state_dim = settings["world_model"]["model"]["input_state_dim"]
+            self.logger.debug(f"rnn_input_state_dim: {self.rnn_input_state_dim}")
+            self.rnn_output_state_dim = settings["world_model"]["model"]["output_state_dim"]
+            self.logger.debug(f"rnn_output_state_dim: {self.rnn_output_state_dim}")
+            self.rnn_input_dim = self.representation_dim + self.rnn_input_state_dim
+            self.logger.debug(f"rnn_input_dim: {self.rnn_input_dim}")
+            self.rnn_output_dim = self.representation_dim + self.rnn_output_state_dim
+            self.logger.debug(f"rnn_output_dim: {self.rnn_output_dim}")
+            self.action_dim = settings["controller"]["model"]["action_dim"]
+            self.logger.debug(f"action_dim: {self.action_dim}")
+
 
     def reset(self):
+        self.h0 = torch.zeros(1, 1, self.rnn_hidden_dim).to(self.device)
+        self.c0 = torch.zeros(1, 1, self.rnn_hidden_dim).to(self.device)
         self.hidden = (self.h0, self.c0)
 
     def __rescale_observation_to_tensor(self, observation: np.ndarray):
         tensor = torch.from_numpy(observation).permute(2, 0, 1).float() / 255.0
-        cropped_tensor = tensor[:, :self.observation_y_crop, :].to(self.device)
+        cropped_tensor = tensor[:, :self.observation_crop_dim, :].to(self.device)
         resized_tensor = torch.nn.functional.interpolate(
             cropped_tensor.unsqueeze(0),
             size=(self.observation_dim, self.observation_dim),

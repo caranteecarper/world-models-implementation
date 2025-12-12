@@ -1,45 +1,57 @@
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
+import json
+import os
+
 import numpy as np
 import pygame
 
 from src.models.simulation_worldmodel import SimulationWorldModel
 from src.utils.logging import get_logger
+from src.utils.torch import get_device
 
 
-VAE_PATH = "./weights/vae/model.pth"
-RNN_PATH = "./weights/worldmodel/model.pth"
+LOG_LEVEL = "INFO"
+logger = get_logger(LOG_LEVEL)
 
-NATIVE_SIZE = 64
-CROP_SIZE = (96, 83)
-DISPLAY_SCALE = 6
-DISPLAY_SIZE = (CROP_SIZE[0] * DISPLAY_SCALE, CROP_SIZE[1] * DISPLAY_SCALE)
+project_folder = "./"
+settings_path = os.path.join(project_folder, "settings.json")
+vae_path = os.path.join(project_folder, "weights/vae/model.pth")
+worldmodel_path = os.path.join(project_folder, "weights/worldmodel/model.pth")
 
+with open(settings_path, "r") as settings_file:
+    settings = json.load(settings_file)
+    OBSERVATION_ORIGINAL_DIM = settings["data_ingestion"]["observation_original_dim"]
+    OBSERVATION_CROP_DIM = settings["data_ingestion"]["observation_crop_dim"]
+    DISPLAY_SCALE = 6
+    DISPLAY_SIZE = (OBSERVATION_ORIGINAL_DIM * DISPLAY_SCALE, OBSERVATION_CROP_DIM * DISPLAY_SCALE)
+    CAPTION = "World Model Dream"
+    logger.debug(f"OBSERVATION_ORIGINAL_DIM: {OBSERVATION_ORIGINAL_DIM}")
+    logger.debug(f"OBSERVATION_CROP_DIM: {OBSERVATION_CROP_DIM}")
+    logger.debug(f"DISPLAY_SCALE: {DISPLAY_SCALE}")
+    logger.debug(f"DISPLAY_SIZE: {DISPLAY_SIZE}")
+    logger.debug(f"CAPTION: {CAPTION}")
 
-logger = get_logger(level="INFO")
+DEVICE = get_device(logger)
 
-DEVICE = torch.device("mps:0" if torch.backends.mps.is_available() else "cpu")
-DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else DEVICE)
-logger.info(f"Using device: {DEVICE}")
+logger.info("--- World Model Dream Control ---")
+logger.info("Left/Right Arrows: Steer")
+logger.info("Up Arrow: Accelerate")
+logger.info("Down Arrow: Brake")
+logger.info("R: Reset Dream (New Random Z)")
+logger.info("Q: Quit")
+logger.info("---------------------------------")
 
 pygame.init()
 screen = pygame.display.set_mode(DISPLAY_SIZE)
-pygame.display.set_caption("World Model Dream")
+pygame.display.set_caption(CAPTION)
 clock = pygame.time.Clock()
 
-simulation_worldmodel = SimulationWorldModel(worldmodel_path=RNN_PATH, vae_path=VAE_PATH, device=DEVICE, logger=logger)
+simulation_worldmodel = SimulationWorldModel(worldmodel_path=worldmodel_path,
+                                             settings_path=settings_path,
+                                             vae_path=vae_path,
+                                             device=DEVICE,
+                                             logger=logger)
 
 action = np.array([0.0, 0.0, 0.0])
-
-print("--- World Model Dream Control ---")
-print("Left/Right Arrows: Steer")
-print("Up Arrow: Accelerate")
-print("Down Arrow: Brake")
-print("R: Reset Dream (New Random Z)")
-print("Q: Quit")
-print("---------------------------------")
-
 running = True
 while running:
     for event in pygame.event.get():
@@ -49,7 +61,7 @@ while running:
             if event.key == pygame.K_q:
                 running = False
             if event.key == pygame.K_r:
-                print("Resetting dream...")
+                logger.info("Resetting dream...")
                 simulation_worldmodel.reset()
                 action[:] = 0.0
 

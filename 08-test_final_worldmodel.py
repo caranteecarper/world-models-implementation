@@ -1,46 +1,30 @@
-import numpy as np
+import os
 
+import numpy as np
 import gymnasium as gym
 
 from src.models.agent import Agent
 from src.utils.torch import get_device
 from src.utils.logging import get_logger
 
-VAE_PATH = "./weights/vae/model.pth"
-RNN_PATH = "./weights/worldmodel/model.pth"
-CONTROLLER_PATH = "./weights/controller/model.pth"
 
-IMAGE_CHANNELS = 3
-VAE_HIDDEN_DIMENSION = 1024
-OBSERVATION_REPRESENTATION_DIMESNION = 32
-RNN_HIDDEN_DIMENSION = 256
-ACTION_DIMENSION = 3
-REWARD_DIMENSION = 1
-RNN_OUTPUT_DIMENSION = OBSERVATION_REPRESENTATION_DIMESNION + REWARD_DIMENSION
-OBSERVATION_Y_CROP = 83
-OBSERVATION_DIMENSION = 64
+LOG_LEVEL = "INFO"
+logger = get_logger(LOG_LEVEL)
 
-LOG_LEVEL = "DEBUG"
+project_folder = "./"
+settings_path = os.path.join(project_folder, "settings.json")
+vae_path = os.path.join(project_folder, "weights/vae/model.pth")
+worldmodel_path = os.path.join(project_folder, "weights/worldmodel/model.pth")
+controller_path = os.path.join(project_folder, "weights/controller/model.pth")
 
-
-logger = get_logger()
 device = get_device()
 
 agent = Agent(
-    vae_path=VAE_PATH,
-    rnn_path=RNN_PATH,
-    controller_path=CONTROLLER_PATH,
+    vae_path=vae_path,
+    worldmodel_path=worldmodel_path,
+    controller_path=controller_path,
     device=device,
-    image_channels=IMAGE_CHANNELS,
-    vae_h_dim=VAE_HIDDEN_DIMENSION,
-    vae_z_dim=OBSERVATION_REPRESENTATION_DIMESNION,
-    rnn_hidden_dim=RNN_HIDDEN_DIMENSION,
-    action_dim=ACTION_DIMENSION,
-    reward_dim=REWARD_DIMENSION,
-    observation_y_crop=OBSERVATION_Y_CROP,
-    observation_dim=OBSERVATION_DIMENSION,
-    logger=logger
-)
+    logger=logger)
 
 env = gym.make("CarRacing-v3",
                 render_mode="human",

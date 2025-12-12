@@ -18,7 +18,7 @@ class ControllerEvolutionaryTrainer(BaseTrainer):
                  simulation_world_model: SimulationWorldModel,
                  steps_per_rollout: int,
                  rollouts_per_solution: int,
-                 sigma_init: Optional[float] = 0.1,
+                 sigma_init: float,
                  load_checkpoint: bool = False,
                  device: Optional[torch.device] = "cpu",
                  wandb_setup: Optional[dict[str, Any]] = None,
@@ -96,6 +96,7 @@ class ControllerEvolutionaryTrainer(BaseTrainer):
             "train/avg_reward": avg_reward,
             "train/max_reward": max_reward,
         })
+        self._evaluate_best_epoch(epoch, avg_reward)
 
     def test_epoch(self, epoch: int) -> bool:
         return False

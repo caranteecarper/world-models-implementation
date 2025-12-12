@@ -104,9 +104,7 @@ class BackpropagationTrainer(BaseTrainer, ABC):
         avg_test_loss = test_loss / test_batches
         self._logger.info(f"Epoch {epoch} Test Loss: {avg_test_loss:.4f}")
         self.wandb_logger.log({"test/loss": avg_test_loss})
-        if avg_test_loss < self.best_epoch_loss:
-            self.best_epoch = epoch
-            self.best_epoch_loss = avg_test_loss
+        self._evaluate_best_epoch(epoch, avg_test_loss)
         if self.early_stopper is not None:
             if self.early_stopper(avg_test_loss):
                 self._logger.info(f"Early stopping triggered at epoch {epoch}")

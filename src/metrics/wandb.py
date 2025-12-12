@@ -1,4 +1,6 @@
 import logging
+import os
+import time
 from typing import Any, Optional
 
 import torch
@@ -27,6 +29,7 @@ class WandbTrainingLogger():
         self._initialize()
 
     def _initialize(self):
+        os.environ["WANDB_SILENT"] = "true"
         wandb.login(key=self.api_key)
         if self.resume:
             wandb_run_id, self.previous_wandb_max_step = self._get_latest_run_id(self.project, self.run_name)
@@ -63,13 +66,20 @@ class WandbTrainingLogger():
         self.step = step
     
     def log(self, metrics: dict[str, Any]) -> None:
-        if self.step < self.previous_wandb_max_step:
-            self._logger.debug(f"Skipping logging step {self.step} because it is less than the previous max step {self.previous_wandb_max_step}")
-            return
-        wandb.log(metrics, step=self.step)
+        try:
+            if self.step < self.previous_wandb_max_step:
+                self._logger.debug(f"Skipping logging step {self.step} because it is less than the previous max step {self.previous_wandb_max_step}")
+                return
+            wandb.log(metrics, step=self.step)
+        except Exception as e:
+            self._logger.error(f"Error logging metrics: {str(e)}")
 
     def finish(self) -> None:
-        wandb.finish()
+        try:
+            time.sleep(2)
+            wandb.finish()
+        except Exception as e:
+            self._logger.error(f"Error finishing wandb: {str(e)}")
 
 
 class DummyWandbLogger():

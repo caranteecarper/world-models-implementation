@@ -9,6 +9,10 @@ from src.models.vae import ConvVAE
 from src.utils.logging import get_logger
 
 
+LOG_LEVEL = "INFO"
+logger = get_logger(LOG_LEVEL)
+
+
 VAE_PATH = "./weights/vae/model.pth"
 VIDEO_FILENAME = "vae_comparison.mp4"
 OBSERVATION_REPRESENTATION_DIM = 32

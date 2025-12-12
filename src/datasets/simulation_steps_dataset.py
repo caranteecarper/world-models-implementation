@@ -33,7 +33,7 @@ class SimulationStepsDataset(LazyLoadedDataset):
                          file_paths=file_paths,
                          transform=transform,
                          shuffle_files=shuffle_files,
-                         shuffle_file_samples=False, # Runs must stay in order on this dataset
+                         shuffle_file_samples=shuffle_file_samples,
                          random_seed=random_seed,
                          logger=self._logger,
                          kwargs=kwargs)

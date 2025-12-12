@@ -110,6 +110,7 @@ class WorldModelTrainer(BackpropagationTrainer):
         dist = torch.distributions.Normal(mu, sigma)
         log_probs = dist.log_prob(target)
         log_probs = torch.sum(log_probs, dim=3)
-        log_weighted_probs = torch.log(pi) + log_probs
+        epsilon = 1e-8 # Prevent crashing due to log(0)
+        log_weighted_probs = torch.log(pi + epsilon) + log_probs
         log_prob_sum = torch.logsumexp(log_weighted_probs, dim=2)
         return -torch.sum(log_prob_sum)

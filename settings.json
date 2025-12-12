@@ -1,0 +1,63 @@
+{
+    "data_ingestion": {
+        "observation_original_dim": 96,
+        "observation_crop_dim": 83,
+        "num_exploration_processes": 8,
+        "target_run_count": 1500
+    },
+    "vae": {
+        "model": {
+            "image_channels": 3,
+            "observation_dim": 64,
+            "hidden_dim": 1024,
+            "representation_dim": 32
+        },
+        "train": {
+            "epochs": 200,
+            "learning_rate": 1e-3,
+            "max_norm": 0.1,
+            "kld_beta": 2,
+            "train_ratio": 0.8,
+            "batch_size": 256,
+            "num_preload_files": 10,
+            "num_dataset_workers": 8,
+            "early_stopping_tolerance": 5,
+            "early_stopping_min_delta": 0.01,
+            "train_image_log_interval": 1000
+        }
+    },
+    "world_model": {
+        "model": {
+            "input_state_dim": 4,
+            "output_state_dim": 1,
+            "hidden_dim": 256,
+            "num_gaussians": 5,
+            "min_sigma": 1e-4,
+            "max_sigma": 5
+        },
+        "train": {
+            "epochs": 500,
+            "learning_rate": 1e-3,
+            "max_norm": 1.0,
+            "train_ratio": 0.8,
+            "batch_size": 64,
+            "sequence_length": 64,
+            "num_preload_files": 10,
+            "num_dataset_workers": 8,
+            "early_stopping_tolerance": 10,
+            "early_stopping_min_delta": 0.01
+        }
+    },
+    "controller": {
+        "model": {
+            "action_dim": 3
+        },
+        "train": {
+            "num_generations": 500,
+            "population_size": 64,
+            "steps_per_rollout": 1000,
+            "rollouts_per_solution": 16,
+            "sigma_init": 0.1
+        }
+    }
+}
