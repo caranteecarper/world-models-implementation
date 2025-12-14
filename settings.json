@@ -18,10 +18,11 @@
             "max_norm": 0.1,
             "kld_beta": 2,
             "train_ratio": 0.8,
-            "batch_size": 256,
+            "epochs_between_tests": 5,
+            "batch_size": 1024,
             "num_preload_files": 10,
             "num_dataset_workers": 8,
-            "early_stopping_tolerance": 5,
+            "early_stopping_tolerance": 3,
             "early_stopping_min_delta": 0.01,
             "train_image_log_interval": 1000
         }

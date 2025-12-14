@@ -20,6 +20,7 @@ class BaseTrainer(ABC):
                  load_checkpoint: bool = False,
                  device: Optional[torch.device] = "cpu",
                  test_epoch_length: Optional[int] = 0,
+                 epochs_between_tests: Optional[int] = 1,
                  wandb_setup: Optional[dict[str, Any]] = None,
                  logger: Optional[logging.Logger] = None):
         self._logger = logger if logger is not None else logging.getLogger(__name__)
@@ -31,6 +32,7 @@ class BaseTrainer(ABC):
         self.load_checkpoint = load_checkpoint
         self.device = device
         self.test_epoch_length = test_epoch_length
+        self.epochs_between_tests = epochs_between_tests
         self.model.to(self.device)
         self.start_epoch = 1
         self.total_trained_batches = 0
@@ -129,7 +131,7 @@ class BaseTrainer(ABC):
                 if not self.epoch_already_trained:
                     self.train_epoch(epoch)
                     self._save_model(epoch)
-                if self.test_epoch_length > 0:
+                if self.test_epoch_length > 0 and self.__should_test_epoch(epoch):
                     should_early_stop = self.test_epoch(epoch)
                     if should_early_stop:
                         break
@@ -145,6 +147,9 @@ class BaseTrainer(ABC):
         torch.save(self.model.state_dict(), os.path.join(self.weights_folder, f"model.pth"))
         self.wandb_logger.finish()
         return self.model
+    
+    def __should_test_epoch(self, epoch: int) -> bool:
+        return epoch % self.epochs_between_tests == 0 or epoch == 1 or epoch == self.num_epochs
     
     def _save_model(self, epoch: int) -> None:
         epoch_file_name = f"epoch_{epoch}.pth"

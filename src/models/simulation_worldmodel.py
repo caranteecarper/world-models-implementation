@@ -22,7 +22,7 @@ class SimulationWorldModel():
                  starting_hidden_state: Optional[tuple[torch.Tensor, torch.Tensor]] = None,
                  logger: Optional[Logger] = None):
         self.logger = logger or get_logger()
-        self.get_settings(settings_path)
+        self.get_model_settings(settings_path)
         self.device = device
         logger.debug(f"WorldModel device: {self.device}")
         self.batch_size = batch_size

@@ -23,6 +23,7 @@ class BackpropagationTrainer(BaseTrainer, ABC):
                  max_norm: Optional[float] = 0.1,
                  device: Optional[torch.device] = "cpu",
                  test_dataloader: Optional[DataLoader] = None,
+                 epochs_between_tests: Optional[int] = 1,
                  early_stopper: Optional[EarlyStopper] = None,
                  wandb_setup: Optional[dict[str, Any]] = None,
                  logger: Optional[logging.Logger] = None):
@@ -34,6 +35,7 @@ class BackpropagationTrainer(BaseTrainer, ABC):
                          load_checkpoint=load_checkpoint,
                          device=device,
                          test_epoch_length=len(test_dataloader) if test_dataloader is not None else 0,
+                         epochs_between_tests=epochs_between_tests,
                          wandb_setup=wandb_setup,
                          logger=logger)
         self.train_dataloader = train_dataloader
