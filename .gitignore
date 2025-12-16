@@ -212,3 +212,4 @@ wandb/
 # Project specific
 data/
 weights/**/*epoch*.pth
+weights/**/*metadata.json
