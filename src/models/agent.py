@@ -12,6 +12,7 @@ from src.utils.logging import get_logger
 
 class Agent():
     def __init__(self,
+                 settings_path: str,
                  vae_path: str,
                  worldmodel_path: str,
                  controller_path: str,
@@ -19,6 +20,7 @@ class Agent():
                  logger: Optional[Logger] = None):
         self.logger = logger or get_logger()
         self.device = device
+        self.get_model_settings(settings_path)
         logger.debug(f"WorldModel device: {self.device}")
         self.vae = ConvVAE(image_channels=self.image_channels,
                            h_dim=self.vae_hidden_dim,

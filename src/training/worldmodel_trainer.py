@@ -25,6 +25,7 @@ class WorldModelTrainer(BackpropagationTrainer):
                  max_norm: Optional[float] = 0.1,
                  device: Optional[torch.device] = "cpu",
                  test_dataloader: Optional[DataLoader] = None,
+                 epochs_between_tests: Optional[int] = 1,
                  early_stopper: Optional[EarlyStopper] = None,
                  wandb_setup: Optional[dict[str, Any]] = None,
                  logger: Optional[logging.Logger] = None):
@@ -41,6 +42,7 @@ class WorldModelTrainer(BackpropagationTrainer):
                          max_norm=max_norm,
                          device=device,
                          test_dataloader=test_dataloader,
+                         epochs_between_tests=epochs_between_tests,
                          early_stopper=early_stopper,
                          wandb_setup=wandb_setup,
                          logger=logger)

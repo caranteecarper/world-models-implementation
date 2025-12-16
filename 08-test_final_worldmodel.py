@@ -20,6 +20,7 @@ controller_path = os.path.join(project_folder, "weights/controller/model.pth")
 device = get_device()
 
 agent = Agent(
+    settings_path=settings_path,
     vae_path=vae_path,
     worldmodel_path=worldmodel_path,
     controller_path=controller_path,
