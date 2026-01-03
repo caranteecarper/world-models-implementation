@@ -3,7 +3,7 @@
         "observation_original_dim": 96,
         "observation_crop_dim": 83,
         "num_exploration_processes": 8,
-        "target_run_count": 1500
+        "target_run_count": 2500
     },
     "vae": {
         "model": {
@@ -13,16 +13,16 @@
             "representation_dim": 32
         },
         "train": {
-            "epochs": 200,
+            "epochs": 500,
             "learning_rate": 1e-3,
             "max_norm": 0.1,
-            "kld_beta": 2,
+            "kld_beta": 4,
             "train_ratio": 0.8,
             "epochs_between_tests": 5,
             "batch_size": 1024,
             "num_preload_files": 10,
             "num_dataset_workers": 8,
-            "early_stopping_tolerance": 3,
+            "early_stopping_tolerance": 5,
             "early_stopping_min_delta": 0.01,
             "train_image_log_interval": 1000
         }
@@ -37,7 +37,7 @@
             "max_sigma": 5
         },
         "train": {
-            "epochs": 500,
+            "epochs": 1500,
             "learning_rate": 1e-3,
             "max_norm": 1.0,
             "train_ratio": 0.8,
@@ -55,7 +55,7 @@
             "action_dim": 3
         },
         "train": {
-            "num_generations": 1000,
+            "num_generations": 10000,
             "population_size": 64,
             "steps_per_rollout": 1000,
             "rollouts_per_solution": 16,
