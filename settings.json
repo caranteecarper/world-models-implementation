@@ -3,7 +3,7 @@
         "observation_original_dim": 96,
         "observation_crop_dim": 83,
         "num_exploration_processes": 8,
-        "target_run_count": 2500
+        "target_run_count": 2000
     },
     "vae": {
         "model": {
