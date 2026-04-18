@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import os
 import json
 import random
 from abc import ABC, abstractmethod
-from typing import Any, Union, Self, Optional
+from typing import Any, Optional, TypeVar, Union
 from logging import Logger, getLogger
 from concurrent.futures import ThreadPoolExecutor
 
@@ -14,6 +16,7 @@ from sklearn.model_selection import train_test_split
 
 SAMPLE_COUNT_METADATA = "length"
 METADATA_FILE_NAME = "metadata.json"
+LazyLoadedDatasetT = TypeVar("LazyLoadedDatasetT", bound="LazyLoadedDataset")
 
 class LazyLoadedDataset(IterableDataset, ABC):
     def __init__(self,
@@ -28,7 +31,7 @@ class LazyLoadedDataset(IterableDataset, ABC):
                  random_seed: Optional[int] = None,
                  logger: Optional[Logger] = None,
                  kwargs: Optional[dict[str, Any]] = None):
-        self._logger = logger if logger is not None else getLogger(self.__name__)
+        self._logger = logger if logger is not None else getLogger(type(self).__name__)
         self._logger.debug(f"Initializing LazyLoadedDataset with {self.__dict__}")
         self.device = "cpu"
         self.data_folder = data_folder
@@ -80,7 +83,7 @@ class LazyLoadedDataset(IterableDataset, ABC):
                          shuffle_file_samples: bool = False,
                          random_seed: Optional[int] = None,
                          logger: Optional[Logger] = None,
-                         kwargs: Optional[dict[str, Any]] = None) -> tuple[Self, Self]:
+                         kwargs: Optional[dict[str, Any]] = None) -> tuple[LazyLoadedDatasetT, LazyLoadedDatasetT]:
         logger = logger if logger is not None else getLogger(cls.__name__)
         inputs = {
             "data_folder": data_folder,
@@ -131,13 +134,43 @@ class LazyLoadedDataset(IterableDataset, ABC):
 
     @staticmethod
     def __load_metadata(data_folder, logger):
+        metadata_file_path = os.path.join(data_folder, METADATA_FILE_NAME)
         try:
-            metadata_file_path = os.path.join(data_folder, METADATA_FILE_NAME)
             with open(metadata_file_path, 'r') as f:
                 return json.load(f)
         except FileNotFoundError:
-            logger.error(f"Metadata file '{METADATA_FILE_NAME}' not found in '{data_folder}'.")
-            raise FileNotFoundError(f"Metadata file '{METADATA_FILE_NAME}' not found in '{data_folder}'.")
+            logger.warning(
+                f"Metadata file '{METADATA_FILE_NAME}' not found in '{data_folder}'. Rebuilding from dataset files."
+            )
+            metadata = LazyLoadedDataset.__rebuild_metadata(data_folder, logger)
+            if not metadata:
+                logger.error(f"Metadata file '{METADATA_FILE_NAME}' not found in '{data_folder}'.")
+                raise FileNotFoundError(f"Metadata file '{METADATA_FILE_NAME}' not found in '{data_folder}'.")
+            with open(metadata_file_path, "w") as metadata_file:
+                json.dump(metadata, metadata_file)
+            logger.info(f"Rebuilt dataset metadata at '{metadata_file_path}'.")
+            return metadata
+
+    @staticmethod
+    def __rebuild_metadata(data_folder: str, logger: Logger) -> dict[str, dict[str, int]]:
+        metadata = {}
+        file_names = sorted(
+            file_name for file_name in os.listdir(data_folder)
+            if file_name.endswith(".pt")
+        )
+        for file_name in file_names:
+            file_path = os.path.join(data_folder, file_name)
+            try:
+                data = torch.load(file_path, map_location="cpu")
+                if isinstance(data, dict) and "observations" in data:
+                    sample_count = len(data["observations"])
+                else:
+                    sample_count = len(data)
+                metadata[file_name] = {SAMPLE_COUNT_METADATA: sample_count}
+            except Exception as exc:
+                logger.warning(f"Skipping '{file_name}' while rebuilding metadata: {exc}")
+                metadata[file_name] = {SAMPLE_COUNT_METADATA: 0}
+        return metadata
 
     @staticmethod
     def __remove_unsuccessful_file_names(file_paths: list[str], metadata, logger):
@@ -163,7 +196,7 @@ class LazyLoadedDataset(IterableDataset, ABC):
                 local_file_path = os.path.join(self.local_data_folder, file_name)
                 if os.path.exists(local_file_path):
                     self._logger.debug(f"Loading file {file_name} from local folder")
-                    dataset = torch.load(local_file_path, weights_only=False)
+                    dataset = torch.load(local_file_path, map_location="cpu")
                     return dataset, file_name
             processed_tensors = self._process_file(file_path)
             if isinstance(processed_tensors, Tensor):

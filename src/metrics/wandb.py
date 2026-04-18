@@ -1,10 +1,15 @@
+from __future__ import annotations
+
 import logging
 import os
 import time
 from typing import Any, Optional
 
 import torch
-import wandb
+try:
+    import wandb
+except ImportError:
+    wandb = None
 
 
 class WandbTrainingLogger():
@@ -29,6 +34,8 @@ class WandbTrainingLogger():
         self._initialize()
 
     def _initialize(self):
+        if wandb is None:
+            raise ImportError("wandb is not installed")
         os.environ["WANDB_SILENT"] = "true"
         wandb.login(key=self.api_key)
         if self.resume:
@@ -87,4 +94,7 @@ class DummyWandbLogger():
         pass
     
     def log(self, metrics: dict[str, Any]) -> None:
+        pass
+
+    def finish(self) -> None:
         pass

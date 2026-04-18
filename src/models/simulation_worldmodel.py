@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 from logging import Logger
 from typing import Optional, Union
@@ -24,7 +26,7 @@ class SimulationWorldModel():
         self.logger = logger or get_logger()
         self.get_model_settings(settings_path)
         self.device = device
-        logger.debug(f"WorldModel device: {self.device}")
+        self.logger.debug(f"WorldModel device: {self.device}")
         self.batch_size = batch_size
         if vae_path is not None:
             self.vae = ConvVAE(image_channels=self.image_channels,

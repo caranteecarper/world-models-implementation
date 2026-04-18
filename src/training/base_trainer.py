@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import logging
 import os
@@ -7,7 +9,7 @@ from typing import Any, Optional
 import torch
 from tqdm.notebook import tqdm
 
-from src.metrics.wandb import WandbTrainingLogger, DummyWandbLogger
+from src.metrics.wandb import WandbTrainingLogger, DummyWandbLogger, wandb
 
 
 class BaseTrainer(ABC):
@@ -97,6 +99,19 @@ class BaseTrainer(ABC):
 
     def __initialize_wandb(self, wandb_setup: Optional[dict[str, Any]]) -> WandbTrainingLogger:
         if wandb_setup is None:
+            return DummyWandbLogger()
+        required_fields = ("api_key", "project", "run_name", "config")
+        missing_fields = [
+            field_name for field_name in required_fields
+            if field_name not in wandb_setup or wandb_setup.get(field_name) is None
+        ]
+        if missing_fields:
+            self._logger.warning(
+                f"Disabling wandb logging because wandb_setup is missing values for: {', '.join(missing_fields)}"
+            )
+            return DummyWandbLogger()
+        if wandb is None:
+            self._logger.warning("Disabling wandb logging because the 'wandb' package is not installed.")
             return DummyWandbLogger()
         api_key = self.__get_mandatory_argument(wandb_setup, "api_key")
         project = self.__get_mandatory_argument(wandb_setup, "project")

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import random
 from typing import Union, Optional, Any
 from logging import Logger, getLogger
@@ -21,7 +23,7 @@ class SimulationStepsDataset(LazyLoadedDataset):
                  random_seed: Optional[int] = None,
                  logger: Optional[Logger] = None,
                  kwargs: Optional[dict[str, Any]] = None):
-        self._logger = logger if logger is not None else getLogger(self.__name__)
+        self._logger = logger if logger is not None else getLogger(type(self).__name__)
         if kwargs is None or "sequence_length" not in kwargs:
             self._logger.error("Argument sequence_length must be specified in kwargs")
             raise ValueError("Argument sequence_length must be specified in kwargs")
