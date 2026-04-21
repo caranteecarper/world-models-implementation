@@ -124,6 +124,18 @@ class SimulationWorldModel():
             next_data = mu[batch_indices, 0, gaussian_indices, :].unsqueeze(1)
             self.current_observation_representation = next_data[:, :, :self.representation_dim].squeeze(1)
             self.current_reward = next_data[:, :, self.representation_dim:].squeeze(1)
+            self.current_observation_representation = torch.nan_to_num(
+                self.current_observation_representation,
+                nan=0.0,
+                posinf=30.0,
+                neginf=-30.0
+            ).clamp(-30.0, 30.0)
+            self.current_reward = torch.nan_to_num(
+                self.current_reward,
+                nan=0.0,
+                posinf=10.0,
+                neginf=-10.0
+            ).clamp(-10.0, 10.0)
             return self.current_observation_representation, self.current_reward
         
     def predict_next_frame(self,

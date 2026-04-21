@@ -60,11 +60,13 @@ class ControllerEvolutionaryTrainer(BaseTrainer):
         actions = torch.zeros(self.rollouts_per_solution, 3).to(self.device)
         observations, rewards = self.simulation_world_model.predict_next_state(action=actions)
         hidden_states = self.simulation_world_model.hidden
-        cumulative_reward = 0.0
+        cumulative_reward = torch.zeros(self.rollouts_per_solution, 1, device=self.device)
         with torch.no_grad():
             for _ in range(self.steps_per_rollout):
                 actions = self.model(observations, hidden_states[0].squeeze(0))
                 observations, rewards = self.simulation_world_model.predict_next_state(action=actions)
+                if not torch.isfinite(observations).all() or not torch.isfinite(rewards).all():
+                    return float("inf")
                 hidden_states = self.simulation_world_model.hidden
                 cumulative_reward = cumulative_reward + rewards
         loss = -torch.mean(cumulative_reward)
@@ -87,18 +89,25 @@ class ControllerEvolutionaryTrainer(BaseTrainer):
                     "train/loss": loss,
                     "epoch": epoch
                 })
-        best_solution = solutions[np.argmin(losses)]
+        if not losses or not np.isfinite(losses).any():
+            self._logger.warning(f"Epoch {epoch} produced no finite rollout losses. Skipping CMA update.")
+            return
+        losses = np.asarray(losses, dtype=np.float64)
+        finite_mask = np.isfinite(losses)
+        worst_finite_loss = np.max(losses[finite_mask])
+        sanitized_losses = np.where(finite_mask, losses, worst_finite_loss + 1000.0)
+        best_solution = solutions[np.argmin(sanitized_losses)]
         self.set_flat_parameters(self.model, best_solution, self.device)
-        self.evolution_strategy.tell(solutions, losses)
-        avg_reward = -np.mean(losses)
-        max_reward = -np.min(losses)
+        self.evolution_strategy.tell(solutions, sanitized_losses.tolist())
+        avg_reward = -np.mean(sanitized_losses)
+        max_reward = -np.min(sanitized_losses)
         self._logger.info(f"Epoch {epoch} Training Average Reward: {avg_reward:.4f}")
         self._logger.info(f"Epoch {epoch} Training Max Reward: {max_reward:.4f}")
         self.wandb_logger.log({
             "train/avg_reward": avg_reward,
             "train/max_reward": max_reward,
         })
-        self._evaluate_best_epoch(epoch, avg_reward)
+        self._evaluate_best_epoch(epoch, -max_reward)
 
     def test_epoch(self, epoch: int) -> bool:
         return False
